@@ -1,0 +1,138 @@
+﻿@{
+    ViewData["Title"] = "Index";
+}
+
+<div class="row" style="text-align:center;padding-top: 30px;">
+    <div class="col-12">
+        <img   src="~/Uploads/logo2.svg" width="100" height="100" />
+        
+        <h2 class="display-5" style="color:black; text-align: center; font-weight: bold; padding-top: 10px"><span>Text & File Share </span></h2>
+    </div>
+</div>
+<div class="row" id="pconnect" style="display:none">
+    <div class="col-6 offset-3">
+        <div class="input-group">
+            <input type="text" id="dname" class="form-control" placeholder="display name" aria-label="display name">
+            <button class="btn btn-outline-secondary btn-sm" type="button" id="connect">Add</button>
+        </div>
+    </div>
+
+</div>
+<div class="row" id="pchat" style="display:none">
+    <div class="col-3">
+        <h4>Participents</h4>
+        <ul class="list-group" id="users">
+        </ul>
+    </div>
+    <div class="col-9">
+        <div class="row">
+            <div class="col-12">
+                Display name: <span id="name"></span>
+            </div>
+            <div class="col-12">
+                <div class="input-group">
+                    <input type="text" id="msg" class="form-control" placeholder="message" aria-label="message">
+                    <button class="btn btn-outline-secondary btn-sm" type="button" id="send">Send</button>
+                    <button class="btn btn-outline-secondary btn-sm" type="button" id="browse">Attached</button>
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-12">
+                <h4>Texts</h4>
+                <ul class="list-group" id="messages">
+                </ul>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-12 d-flex justify-content-start gap-1 flex-wrap" id="files">
+            </div>
+        </div>
+    </div>
+
+
+</div>
+<input type="file" id="file" style="display:none" />
+@section scripts {
+    <script src="~/libs/signalr/signalr.js"></script>
+    <script src="~/libs/jquery/jquery.js"></script>
+    <script>
+        $(() => {
+            var con = new signalR.HubConnectionBuilder().withUrl("/messageAndFileShareHub").build();
+            var dname = "";
+            //con events
+            con.on('connected', m => {
+                $('#pconnect').show();
+            });
+            con.on('userlist', users => {
+                $("#pchat").show();
+                $("#pconnect").hide();
+                //console.log(users)
+                $("#users").empty();
+                users.forEach(u => {
+                    $("#users").append(`<li class="list-group-item">${u}</li>`)
+                });
+            });
+            con.on('message', (u, m) => {
+                $("#messages").append(`<li class="list-group-item">${u}: ${m}</li>`)
+            });
+            con.on('uploaded', (u, f, t) => {
+                console.log(`${f}-${t}`);
+                if (t == 'image') {
+                    $('#files').append(`<div class="card" style="width:200px">
+                                                                    <img src="/Uploads/${f}" class="card-img-top" alt="...">
+                                                                    <div class="card-body">
+                                                                        <h5 class="card-title">${f}</h5>
+                                                                        <p class="card-text">Uploaded by ${u}</p>
+                                                                  </div>
+                                                        </div>`)
+                }
+                else {
+                    $('#files').append(`<div class="card" style="width:200px">
+                                                                    <img src="/Uploads/doc.png" class="card-img-top" alt="...">
+                                                                            <div class="card-body">
+                                                                                <h5 class="card-title">${f}</h5>
+                                                                                <p class="card-text">Uploaded by ${u}</p>
+                                                                          </div>
+                                                                </div>`)
+                }
+
+            });
+            con.onerror = err => {
+                con.log(err);
+            }
+            // start con
+            con.start()
+                .then(() => {
+                    console.log('connected');
+                })
+                .catch(err => {
+                    console.log(err.toString());
+                });
+            // html element element
+            $('#connect').click(() => {
+                dname = $('#dname').val();
+                $('#name').html(dname);
+                con.invoke('join', dname);
+            });
+            $('#send').click(() => {
+                con.invoke('send', dname, $('#msg').val());
+                $("#messages").append(`<li class="list-group-item">You: ${$('#msg').val()}</li>`)
+                $('#msg').val('');
+            });
+            $('#browse').click(() => {
+                $("#file").trigger('click');
+            });
+            $("#file").change(() => {
+                var f = document.getElementById("file").files[0];
+                var reader = new FileReader();
+                reader.onloadend = function () {
+                    var data = { fileName: f.name, data: reader.result };
+                    //console.log(data);
+                    con.invoke("Upload", dname, data);
+                }
+                reader.readAsDataURL(f);
+            })
+        });
+    </script>
+}
